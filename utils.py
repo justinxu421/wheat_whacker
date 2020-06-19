@@ -273,7 +273,7 @@ def letterbox(img, new_shape=(416, 416), color=(114, 114, 114), auto=True, scale
 class WheatDataset(Dataset):
     """Class for loading and transforming training images
     """
-    def __init__(self, dataframe, image_dir, transforms=None):
+    def __init__(self, dataframe, image_dir, transforms=None, augment=True):
         super().__init__()
         
         self.df = dataframe
@@ -300,16 +300,12 @@ class WheatDataset(Dataset):
         
         self.image_dir = image_dir
         self.transforms = transforms
-        
-        self.mosaic = False
-        self.augment = True
+        self.augment = augment
 
     def __getitem__(self, index: int):
 
         # This just does load mosaic all the time
-        self.mosaic = True
-        if random.randint(0,1) == 0:
-            self.mosaic = False
+        self.mosaic = self.augment
         if self.mosaic:
             # Load mosaic
             img, labels = load_mosaic(self, index)
@@ -389,8 +385,12 @@ class WheatTestDataset(Dataset):
     def __len__(self) -> int:
         return self.image_ids.shape[0]
     
-def get_datasets(train_df, valid_df, test_df, DIR_TRAIN, DIR_TEST):
-    """Formats and augments the datasets for the data loader"""
+def get_datasets(train_df, valid_df, test_df, DIR_TRAIN, DIR_TEST, augment = True):
+    """
+    Formats and augments the datasets for the data loader
+    Params:
+        augment - (bool) augment images or not
+    """
     # Bounding box formatting (and currently none transforms)
     def get_train_transform():
         return A.Compose([
@@ -410,8 +410,8 @@ def get_datasets(train_df, valid_df, test_df, DIR_TRAIN, DIR_TEST):
         ])
 
     # Getting augmented, formatted datasets
-    train_dataset = WheatDataset(train_df, DIR_TRAIN, get_train_transform())
-    valid_dataset = WheatDataset(valid_df, DIR_TRAIN, get_valid_transform())
+    train_dataset = WheatDataset(train_df, DIR_TRAIN, get_train_transform(), augment=augment)
+    valid_dataset = WheatDataset(valid_df, DIR_TRAIN, get_valid_transform(), augment=augment)
     test_dataset = WheatTestDataset(test_df, DIR_TEST, get_test_transform())
     
     return train_dataset, valid_dataset, test_dataset
@@ -457,10 +457,56 @@ class Averager:
         self.iterations = 0.0
     
     
+def format_prediction_string(boxes, scores):
+    """Format bounding box predictions into a string for submission
+    """
+    pred_strings = []
+    for j in zip(scores, boxes):
+        pred_strings.append("{0:.4f} {1} {2} {3} {4}".format(j[0], j[1][0], j[1][1], j[1][2], j[1][3]))
+
+    return " ".join(pred_strings)
     
     
+def predict_bbox(images, image_ids, model, detection_threshold, submission=False):
+    """Predicts bounding boxes for a list of images if they exceed the score 
+    threshold, and returns as a dataframe formatted for further training or submission.
+    """
+    # TODO: Breakdown the get dataset functions into a train + val and separate test
+    # for more easily feeding this pseudolabeled data into a dataset
     
+    outputs = model(images)
+    results = []
     
+    for i, image in enumerate(images):
+        # Predict boxes
+        boxes = outputs[i]['boxes'].data.cpu().numpy()
+        scores = outputs[i]['scores'].data.cpu().numpy()
+        
+        # Cut off at probability score threshold
+        boxes = boxes[scores >= detection_threshold].astype(np.int32)
+        scores = scores[scores >= detection_threshold]
+        image_id = image_ids[i]
+        
+        # Format results
+        if submission == True: 
+            boxes[:, 2] = boxes[:, 2] - boxes[:, 0]
+            boxes[:, 3] = boxes[:, 3] - boxes[:, 1]
+            results.append({
+                'image_id': image_id,
+                'PredictionString': format_prediction_string(boxes, scores)
+            })
+        else:
+            for box in boxes:
+                results.append({
+                    'image_id': image_id,
+                    'x1': box[0],
+                    'y1': box[1],
+                    'x2': box[2],
+                    'y2': box[3],
+                })
+             
+    return results
+
     
     
     
