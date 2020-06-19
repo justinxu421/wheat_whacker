@@ -450,10 +450,57 @@ class Averager:
         self.iterations = 0.0
     
     
+def format_prediction_string(boxes, scores):
+    """Format bounding box predictions into a string for submission
+    """
+    pred_strings = []
+    for j in zip(scores, boxes):
+        pred_strings.append("{0:.4f} {1} {2} {3} {4}".format(j[0], j[1][0], j[1][1], j[1][2], j[1][3]))
+
+    return " ".join(pred_strings)
     
     
+def predict_bbox(images, image_ids, model, detection_threshold, submission=False):
+    """Predicts bounding boxes for a list of images if they exceed the score 
+    threshold, and returns as a dataframe formatted for further training or submission.
+    """
+    # TODO: Breakdown the get dataset functions into a train + val and separate test
+    # for more easily feeding this pseudolabeled data into a dataset
     
+    outputs = model(images)
+    results = []
     
+    for i, image in enumerate(images):
+        # Predict boxes
+        boxes = outputs[i]['boxes'].data.cpu().numpy()
+        scores = outputs[i]['scores'].data.cpu().numpy()
+        
+        # Cut off at probability score threshold
+        boxes = boxes[scores >= detection_threshold].astype(np.int32)
+        scores = scores[scores >= detection_threshold]
+        image_id = image_ids[i]
+        
+        boxes[:, 2] = boxes[:, 2] - boxes[:, 0]
+        boxes[:, 3] = boxes[:, 3] - boxes[:, 1]
+        
+        # Format results
+        if submission == True:
+            results.append({
+                'image_id': image_id,
+                'PredictionString': format_prediction_string(boxes, scores)
+            })
+        else:
+            for box in boxes:
+                results.append({
+                    'image_id': image_id,
+                    'x': box[0],
+                    'y': box[1],
+                    'w': box[2],
+                    'h': box[3],
+                })
+             
+    return results
+
     
     
     
