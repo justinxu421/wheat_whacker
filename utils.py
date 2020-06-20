@@ -303,10 +303,10 @@ class WheatDataset(Dataset):
         self.augment = augment
 
     def __getitem__(self, index: int):
-
-        # This just does load mosaic all the time
-        self.mosaic = self.augment
-        if self.mosaic:
+        # load mosaic if augmenting and with probability .25
+        self.mosaic = False
+        if self.augment & (random.randint(0,1) < .25):
+            self.mosaic = True
             # Load mosaic
             img, labels = load_mosaic(self, index)
             shapes = None
