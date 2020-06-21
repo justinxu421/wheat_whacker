@@ -413,7 +413,7 @@ def get_datasets(train_df, valid_df, test_df, DIR_TRAIN, DIR_TEST, augment = Tru
 
     def get_valid_transform():
         return A.Compose([
-            ToTensorV2(p=1.0)
+#             ToTensorV2(p=1.0)
         ], bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']})
 
 
