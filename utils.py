@@ -303,9 +303,9 @@ class WheatDataset(Dataset):
         self.augment = augment
 
     def __getitem__(self, index: int):
-        # load mosaic if augmenting and with probability .25
+        # load mosaic if augmenting and with probability .8
         self.mosaic = False
-        if self.augment & (random.randint(0,1) < .25):
+        if self.augment & (random.randint(0,1) < 0.8):
             self.mosaic = True
             # Load mosaic
             img, labels = load_mosaic(self, index)
@@ -346,6 +346,19 @@ class WheatDataset(Dataset):
         d = {}
         d['boxes'] = torch.from_numpy(labels[:,1:].astype(np.float32))
         d['labels'] = torch.ones((labels[:,0].shape[0],), dtype=torch.int64)
+        
+        # TODO reimplement the transforms (I think this works)
+        if self.transforms:
+            sample = {
+                'image': img,
+                'bboxes': d['boxes'],
+                'labels': d['labels']
+            }
+            sample = self.transforms(**sample)
+            img = sample['img']
+            d = {}
+            d['boxes'] = sample['boxes']
+            d['labels'] = samples['labels']
         
         return torch.from_numpy(torch.from_numpy(img).permute(2, 0, 1).numpy().astype(np.float32) / 255.0), d
 
@@ -411,7 +424,7 @@ def get_datasets(train_df, valid_df, test_df, DIR_TRAIN, DIR_TEST, augment = Tru
 
     # Getting augmented, formatted datasets
     train_dataset = WheatDataset(train_df, DIR_TRAIN, get_train_transform(), augment=augment)
-    valid_dataset = WheatDataset(valid_df, DIR_TRAIN, get_valid_transform(), augment=augment)
+    valid_dataset = WheatDataset(valid_df, DIR_TRAIN, get_valid_transform(), augment=False)
     test_dataset = WheatTestDataset(test_df, DIR_TEST, get_test_transform())
     
     return train_dataset, valid_dataset, test_dataset
