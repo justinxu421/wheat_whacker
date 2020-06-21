@@ -342,23 +342,22 @@ class WheatDataset(Dataset):
 
             # Augment colorspace
             augment_hsv(img, hgain=0.0138, sgain= 0.678, vgain=0.36)
-        
-        d = {}
-        d['boxes'] = torch.from_numpy(labels[:,1:].astype(np.float32))
-        d['labels'] = torch.ones((labels[:,0].shape[0],), dtype=torch.int64)
-        
+            
         # TODO reimplement the transforms (I think this works)
         if self.transforms:
             sample = {
                 'image': img,
-                'bboxes': d['boxes'],
-                'labels': d['labels']
+                'bboxes': labels[:,1:],
+                'labels': labels[:,0]
             }
             sample = self.transforms(**sample)
-            img = sample['img']
-            d = {}
-            d['boxes'] = sample['boxes']
-            d['labels'] = samples['labels']
+            img = sample['image']
+            labels[:,1:] = sample['bboxes']
+            labels[:,0] = sample['labels']
+        
+        d = {}
+        d['boxes'] = torch.from_numpy(labels[:,1:].astype(np.float32))
+        d['labels'] = torch.ones((labels[:,0].shape[0],), dtype=torch.int64)
         
         return torch.from_numpy(torch.from_numpy(img).permute(2, 0, 1).numpy().astype(np.float32) / 255.0), d
 
@@ -407,7 +406,9 @@ def get_datasets(train_df, valid_df, test_df, DIR_TRAIN, DIR_TEST, augment = Tru
     # Bounding box formatting (and currently none transforms)
     def get_train_transform():
         return A.Compose([
-            ToTensorV2(p=1.0)
+            A.Flip(0.5),
+            A.Blur(p=0.5),
+#             ToTensorV2(p=1.0)
         ], bbox_params={'format': 'pascal_voc', 'label_fields': ['labels']})
 
     def get_valid_transform():
