@@ -1,2 +1,5 @@
 albumentations
 timm
+effdet==0.1
+pycocotools
+omegaconf
