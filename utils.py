@@ -79,17 +79,6 @@ class WheatDataset(Dataset):
         # Store dataset dataframe and each column
         self.df = dataframe
         self.image_ids = dataframe['image_id'].unique()
-        self.labels = [np.zeros((0, 5), dtype=np.float32)] * len(self.image_ids) # init KITTI boxes
-        
-        # Convert (x1, y1, w, h) to KITTI (x1, y1, x2, y2)
-        for i, img_id in enumerate(self.image_ids):
-            records = self.df[self.df['image_id'] == img_id]
-            boxes = records[['x', 'y', 'w', 'h']].values
-            new_boxes = []
-            for box in boxes:
-                x, y, w, h = box
-                new_boxes.append([x, y, x+w, y+h])
-            self.labels[i] = np.array(new_boxes)
 
        # Store image directory
         self.image_dir = image_dir
@@ -100,11 +89,11 @@ class WheatDataset(Dataset):
 
     def __getitem__(self, index: int):
         # Get image and box coordinates
-        if random.random() > 0.5:
-            image, coords = self.load_image(index)
-        else:
+        if self.augment and random.random() > 0.5:
             image, coords = self.load_cutmix_image_and_boxes(index)
-        
+        else:
+            image, coords = self.load_image(index)
+
         if self.augment:
             # Get bounding boxes
             boxes = [BoundingBox(coord[0], coord[1], coord[2], coord[3]) for coord in coords]
@@ -127,10 +116,10 @@ class WheatDataset(Dataset):
                 # color variety of wheat # iaa.AddToHueAndSaturation((-60, 60)),
                 iaa.ChangeColorTemperature((4000, 20000)),
                 iaa.AddToBrightness((-30, 50)),
+                iaa.Cutout(fill_mode="constant", cval=0),
             ])
             
             # TODO: hyper parameter for augmentations?
-            # TODO: try mix-match / mosaic augmentation
             # TODO: water-like effect
             # iaa.ElasticTransformation(alpha=90, sigma=9),   
 
@@ -139,7 +128,7 @@ class WheatDataset(Dataset):
         
         # Return augmented image and bounding boxes as tensors
         image = image.astype(np.float32) / 255.0 # .permute(2, 0, 1)
-        image = torch.from_numpy(image)
+        image = torch.from_numpy(image).permute(2,0,1)
         d = {
             'boxes': torch.from_numpy(coords.astype(np.float32)),
             'labels': torch.ones((coords.shape[0],), dtype=torch.int64)
@@ -155,8 +144,13 @@ class WheatDataset(Dataset):
         """
         image_id = self.image_ids[index]
         imgpath = f'{self.image_dir}'
-        img = imageio.imread(f'{imgpath}/{image_id}.jpg')
-        boxes = self.labels[index]
+        img = cv2.imread(f'{imgpath}/{image_id}.jpg', cv2.IMREAD_COLOR)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.uint8)
+        
+        records = self.df[self.df['image_id'] == image_id]
+        boxes = records[['x', 'y', 'w', 'h']].values
+        boxes[:, 2] = boxes[:, 0] + boxes[:, 2]
+        boxes[:, 3] = boxes[:, 1] + boxes[:, 3]
 
         assert img is not None, 'Image Not Found ' + imgpath
         return img, boxes
