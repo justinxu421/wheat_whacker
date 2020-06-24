@@ -103,27 +103,27 @@ class WheatDataset(Dataset):
             blur_k = 5
             
             seq = iaa.Sequential([
-                # occlusion # iaa.Cutout(),
-                iaa.CoarseDropout((0.0, 0.05), size_percent=(0.02, 0.25)),
+#                 iaa.CoarseDropout((0.0, 0.05), size_percent=(0.02, 0.25)),
                 # wind caused blur
                 iaa.MotionBlur(k=blur_k, angle=[-45, 45]), 
                 # camera perspectives
-                iaa.ShearX((-20, 20)), 
-                iaa.ShearY((-20, 20)),
+#                 iaa.ShearX((-20, 20)), 
+#                 iaa.ShearY((-20, 20)),
                 iaa.Rot90((0, 3), keep_size=False),
                 iaa.Fliplr(0.5),
                 iaa.Flipud(0.5),
                 # color variety of wheat # iaa.AddToHueAndSaturation((-60, 60)),
                 iaa.ChangeColorTemperature((4000, 20000)),
                 iaa.AddToBrightness((-30, 50)),
-                iaa.Cutout(fill_mode="constant", cval=0),
+                iaa.Cutout(fill_mode='constant', size=0.1, cval=0),
             ])
             
             # TODO: hyper parameter for augmentations?
             # TODO: water-like effect
             # iaa.ElasticTransformation(alpha=90, sigma=9),   
-
-            image, bbs = seq(image=image, bounding_boxes=bbs)
+            if random.random() > 0.5:
+                image, bbs = seq(image=image, bounding_boxes=bbs)
+                
             coords = bbs.to_xyxy_array()
         
         # Return augmented image and bounding boxes as tensors
